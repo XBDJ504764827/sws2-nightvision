@@ -17,9 +17,7 @@
     },
     "Effect": {
       "FadeDuration": 0.0,
-      "ExposureCompensation": 0.0,
-      "ExposureFadeSpeedUp": 0.5,
-      "ExposureFadeSpeedDown": 0.5
+      "ExposureCompensation": 0.0
     }
   }
 }

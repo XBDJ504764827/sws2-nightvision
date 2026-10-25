@@ -47,6 +47,7 @@ csgo/addons/swiftlys2/plugins/
 | `!nv off` | Disable night vision |
 | `!nvi [intensity]` / `!nvintensity [intensity]` | Set your intensity, or show the current value and range |
 | `!nvstatus` | Show whether night vision is enabled and the current intensity |
+| `!nvdebug` | Write detailed diagnostics to your console and the server log |
 
 Commands are registered as raw commands, so they can also be bound in the client console:
 
@@ -107,17 +108,27 @@ The first load creates `csgo/addons/swiftlys2/configs/plugins/sws2-nightvision/c
       "FadeDuration": 0.0,
 
       // Extra exposure compensation on top of the intensity.
-      "ExposureCompensation": 0.0,
-
-      // Exposure fade speeds.
-      "ExposureFadeSpeedUp": 0.5,
-      "ExposureFadeSpeedDown": 0.5
+      "ExposureCompensation": 0.0
     }
   }
 }
 ```
 
 Player preferences are stored in `csgo/addons/swiftlys2/configs/plugins/sws2-nightvision/preferences.json`.
+
+## Troubleshooting
+
+If night vision is enabled but nothing changes on screen:
+
+1. Run `!nvdebug` and check the output in your client console and the server console.
+2. Make sure your client has post-processing enabled:
+
+   ```
+   mat_postprocess_enable 1
+   ```
+
+3. Some maps provide their own master post-processing volume or tonemap controller. Try a normal map such as `de_dust2` to rule out a map-specific conflict.
+4. Check the server log for `[sws2-nightvision]` entries after running `!nv`.
 
 ## How it works
 

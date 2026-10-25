@@ -15,5 +15,7 @@
   "nightvision.intensity.set": "夜视强度已设置为 [green]{0:0.0}[default]。",
   "nightvision.status.on": "夜视：[green]开启[default] | 强度：[green]{0:0.0}[default]",
   "nightvision.status.off": "夜视：[darkred]关闭[default] | 强度：[green]{0:0.0}[default]",
+  "nightvision.postprocess_disabled": "你的客户端禁用了后处理，请设置 [green]mat_postprocess_enable 1[default] 才能看到夜视效果。",
+  "nightvision.debug.sent": "诊断信息已输出到你的控制台。",
   "nightvision.status.pending": "夜视：[yellow]开启（待生效）[default] | 强度：[green]{0:0.0}[default]"
 }

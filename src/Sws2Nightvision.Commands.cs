@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.Translation;
@@ -44,12 +45,23 @@ public partial class Sws2Nightvision
             ? _manager.SetEnabled(player, desired.Value)
             : _manager.Toggle(player);
 
+        Core.Logger.LogInformation(
+            "[sws2-nightvision] !nv from {PlayerName} ({PlayerId}) -> {Result}",
+            player.Name,
+            player.PlayerID,
+            result);
+
         switch (result)
         {
             case NightvisionToggleResult.Enabled:
                 if (_config.Behavior.NotifyOnToggle)
                 {
                     Reply(context, localizer, "nightvision.on", _manager.GetIntensity(player));
+                }
+
+                if (IsPostProcessingDisabled(player))
+                {
+                    Reply(context, localizer, "nightvision.postprocess_disabled");
                 }
 
                 break;
@@ -131,6 +143,25 @@ public partial class Sws2Nightvision
         Reply(context, localizer, "nightvision.intensity.set", applied);
     }
 
+    [Command("nvdebug", true, "", "Show night vision diagnostics")]
+    public void NightvisionDebugCommand(ICommandContext context)
+    {
+        if (!TryGetCommandPlayer(context, out var player, out var localizer))
+        {
+            return;
+        }
+
+        var diagnostics = _manager.GetDiagnostics(player);
+        Core.Logger.LogInformation(
+            "[sws2-nightvision] Debug for {PlayerName} ({PlayerId}): {Diagnostics}",
+            player.Name,
+            player.PlayerID,
+            diagnostics);
+
+        player.SendConsole($"[sws2-nightvision] {diagnostics}");
+        Reply(context, localizer, "nightvision.debug.sent");
+    }
+
     [Command("nvstatus", true, "", "Show night vision status")]
     public void NightvisionStatusCommand(ICommandContext context)
     {
@@ -179,6 +210,18 @@ public partial class Sws2Nightvision
 
         player = context.Sender;
         return true;
+    }
+
+    private static bool IsPostProcessingDisabled(IPlayer player)
+    {
+        try
+        {
+            return player.GetClientConvarValue("mat_postprocess_enable") == "0";
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryParseFloat(string input, out float value)

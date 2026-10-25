@@ -15,5 +15,7 @@
   "nightvision.intensity.set": "Night vision intensity set to [green]{0:0.0}[default].",
   "nightvision.status.on": "Night vision: [green]ON[default] | Intensity: [green]{0:0.0}[default]",
   "nightvision.status.off": "Night vision: [darkred]OFF[default] | Intensity: [green]{0:0.0}[default]",
+  "nightvision.postprocess_disabled": "Your client has post-processing disabled. Set [green]mat_postprocess_enable 1[default] to see night vision.",
+  "nightvision.debug.sent": "Diagnostics written to your console.",
   "nightvision.status.pending": "Night vision: [yellow]ON (pending)[default] | Intensity: [green]{0:0.0}[default]"
 }

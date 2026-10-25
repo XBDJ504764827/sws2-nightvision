@@ -10,6 +10,16 @@ namespace Sws2Nightvision;
 /// </summary>
 public partial class Sws2Nightvision
 {
+    private void OnClientConnected(IOnClientConnectedEvent @event)
+    {
+        _manager.BlockActiveForPlayer(@event.PlayerId);
+    }
+
+    private void OnClientPutInServer(IOnClientPutInServerEvent @event)
+    {
+        _manager.BlockActiveForPlayer(@event.PlayerId);
+    }
+
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _manager.CleanupPlayer(@event.PlayerId);
@@ -34,6 +44,7 @@ public partial class Sws2Nightvision
         }
 
         var playerId = player.PlayerID;
+        _manager.BlockActiveForPlayer(playerId);
 
         // The pawn is not fully ready during the event itself.
         Core.Scheduler.NextTick(() =>

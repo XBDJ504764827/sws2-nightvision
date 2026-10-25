@@ -54,6 +54,7 @@ public partial class Sws2Nightvision : BasePlugin
         preferences.Load();
 
         _manager = new NightvisionManager(Core, _config, preferences);
+        _manager.Start();
 
         options.OnChange(newConfig =>
         {
@@ -75,6 +76,8 @@ public partial class Sws2Nightvision : BasePlugin
         });
 
         // 4. Runtime events and game events.
+        Core.Event.OnClientConnected += OnClientConnected;
+        Core.Event.OnClientPutInServer += OnClientPutInServer;
         Core.Event.OnClientDisconnected += OnClientDisconnected;
         Core.Event.OnMapUnload += OnMapUnload;
 
@@ -101,6 +104,8 @@ public partial class Sws2Nightvision : BasePlugin
     {
         _loaded = false;
 
+        Core.Event.OnClientConnected -= OnClientConnected;
+        Core.Event.OnClientPutInServer -= OnClientPutInServer;
         Core.Event.OnClientDisconnected -= OnClientDisconnected;
         Core.Event.OnMapUnload -= OnMapUnload;
 

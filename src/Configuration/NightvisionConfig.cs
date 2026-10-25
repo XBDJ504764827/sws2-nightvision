@@ -67,10 +67,4 @@ public sealed class NightvisionEffect
 
     /// <summary>Additional exposure compensation applied on top of the intensity.</summary>
     public float ExposureCompensation { get; set; }
-
-    /// <summary>Speed at which exposure fades in.</summary>
-    public float ExposureFadeSpeedUp { get; set; } = 0.5f;
-
-    /// <summary>Speed at which exposure fades out.</summary>
-    public float ExposureFadeSpeedDown { get; set; } = 0.5f;
 }

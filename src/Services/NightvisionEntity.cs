@@ -57,18 +57,20 @@ public sealed class NightvisionEntity : IDisposable
             _volume.DispatchSpawn();
             _spawned = true;
 
-            NotifyAllUpdated();
+            // The owner is never blocked; make this explicit in case another
+            // plugin or an earlier instance changed the transmit bits.
+            _volume.SetTransmitState(true, _playerId);
 
-            // Fail closed: if the volume cannot be restricted to its owner, it must be
-            // destroyed so it cannot affect every player on the server.
-            if (!ApplyTransmission())
-            {
-                _core.Logger.LogWarning(
-                    "[sws2-nightvision] Failed to restrict post_processing_volume to player {PlayerId}",
-                    _playerId);
-                Dispose();
-                return false;
-            }
+            // The volume is created dynamically, so make sure the client-side
+            // camera services receive the volumes list entry as well.
+            ApplyEffectNetworkState();
+            AttachToOwner();
+            BlockForOtherPlayers();
+
+            _core.Logger.LogInformation(
+                "[sws2-nightvision] Created post_processing_volume for player {PlayerId}: {Diagnostics}",
+                _playerId,
+                GetDiagnostics());
 
             return true;
         }
@@ -116,8 +118,106 @@ public sealed class NightvisionEntity : IDisposable
 
         if (_spawned)
         {
-            NotifyAllUpdated();
+            ApplyEffectNetworkState();
         }
+
+        AttachToOwner();
+    }
+
+    /// <summary>
+    /// Adds this volume to the owning player's camera services list if needed.
+    /// The engine can rebuild this list, so this is safe to call repeatedly.
+    /// </summary>
+    public void AttachToOwner()
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        try
+        {
+            var player = _core.PlayerManager.GetPlayer(_playerId);
+            var camera = player?.PlayerPawn?.CameraServices;
+            if (camera is null || _volume is null)
+            {
+                return;
+            }
+
+            var handle = _core.EntitySystem.GetRefEHandle(_volume);
+            ref var volumes = ref camera.PostProcessingVolumes;
+
+            if (volumes.Find(handle) >= 0)
+            {
+                return;
+            }
+
+            volumes.AddToTail(handle);
+            camera.PostProcessingVolumesUpdated();
+        }
+        catch (Exception exception)
+        {
+            _core.Logger.LogDebug(
+                exception,
+                "[sws2-nightvision] Failed to attach volume to player {PlayerId}",
+                _playerId);
+        }
+    }
+
+    /// <summary>
+    /// Blocks this volume for a player other than its owner.
+    /// </summary>
+    public void BlockFor(int playerId)
+    {
+        if (!IsActive || playerId == _playerId)
+        {
+            return;
+        }
+
+        try
+        {
+            _volume!.SetTransmitState(false, playerId);
+        }
+        catch (Exception exception)
+        {
+            _core.Logger.LogDebug(
+                exception,
+                "[sws2-nightvision] Failed to block volume for player {PlayerId}",
+                playerId);
+        }
+    }
+
+    /// <summary>
+    /// Short diagnostic string for the <c>!nvdebug</c> command.
+    /// </summary>
+    public string GetDiagnostics()
+    {
+        if (!IsActive || _volume is null)
+        {
+            return "volume=inactive";
+        }
+
+        var transmitting = _volume.IsTransmitting(_playerId);
+        var attached = false;
+
+        try
+        {
+            var player = _core.PlayerManager.GetPlayer(_playerId);
+            var camera = player?.PlayerPawn?.CameraServices;
+            if (camera is not null)
+            {
+                var handle = _core.EntitySystem.GetRefEHandle(_volume);
+                attached = camera.PostProcessingVolumes.Find(handle) >= 0;
+            }
+        }
+        catch
+        {
+            // Diagnostics must never throw.
+        }
+
+        return $"index={_volume.Index} ownerTransmit={transmitting} attached={attached} "
+            + $"master={_volume.Master} exposureControl={_volume.ExposureControl} "
+            + $"min={_volume.MinExposure:0.00} max={_volume.MaxExposure:0.00}";
     }
 
     private void ApplyEffect(NightvisionConfig config)
@@ -136,8 +236,6 @@ public sealed class NightvisionEntity : IDisposable
         _volume.ExposureControl = true;
         _volume.FadeDuration = Math.Max(0f, effect.FadeDuration);
         _volume.ExposureCompensation = effect.ExposureCompensation;
-        _volume.ExposureFadeSpeedUp = Math.Max(0f, effect.ExposureFadeSpeedUp);
-        _volume.ExposureFadeSpeedDown = Math.Max(0f, effect.ExposureFadeSpeedDown);
     }
 
     private void ApplyIntensity(float intensity)
@@ -152,7 +250,7 @@ public sealed class NightvisionEntity : IDisposable
         _volume.MaxExposure = value;
     }
 
-    private void NotifyAllUpdated()
+    private void ApplyEffectNetworkState()
     {
         if (_volume is null)
         {
@@ -163,26 +261,52 @@ public sealed class NightvisionEntity : IDisposable
         _volume.ExposureControlUpdated();
         _volume.FadeDurationUpdated();
         _volume.ExposureCompensationUpdated();
-        _volume.ExposureFadeSpeedUpUpdated();
-        _volume.ExposureFadeSpeedDownUpdated();
         _volume.MinExposureUpdated();
         _volume.MaxExposureUpdated();
     }
 
-    private bool ApplyTransmission()
+    private void BlockForOtherPlayers()
+    {
+        foreach (var player in _core.PlayerManager.GetAllPlayers())
+        {
+            if (player.PlayerID != _playerId && !player.IsFakeClient)
+            {
+                BlockFor(player.PlayerID);
+            }
+        }
+    }
+
+    private void DetachFromOwner()
     {
         if (_volume is null)
         {
-            return false;
+            return;
         }
 
-        // Block the entity for everyone, then allow only its owner. The volume
-        // itself is a global master volume, so per-player transmission is what
-        // makes the effect private.
-        _volume.SetTransmitState(false);
-        _volume.SetTransmitState(true, _playerId);
+        try
+        {
+            var player = _core.PlayerManager.GetPlayer(_playerId);
+            var camera = player?.PlayerPawn?.CameraServices;
+            if (camera is null)
+            {
+                return;
+            }
 
-        return _volume.IsTransmitting(_playerId);
+            var handle = _core.EntitySystem.GetRefEHandle(_volume);
+            ref var volumes = ref camera.PostProcessingVolumes;
+
+            if (volumes.FindAndFastRemove(handle))
+            {
+                camera.PostProcessingVolumesUpdated();
+            }
+        }
+        catch (Exception exception)
+        {
+            _core.Logger.LogDebug(
+                exception,
+                "[sws2-nightvision] Failed to detach volume from player {PlayerId}",
+                _playerId);
+        }
     }
 
     /// <summary>
@@ -194,6 +318,8 @@ public sealed class NightvisionEntity : IDisposable
         {
             return;
         }
+
+        DetachFromOwner();
 
         _disposed = true;
         _spawned = false;

@@ -40,6 +40,8 @@ public sealed class NightvisionManager : IDisposable
     private float _maxIntensity;
     private float _defaultIntensity;
 
+    private CancellationTokenSource? _reattachTimer;
+
     public NightvisionManager(ISwiftlyCore core, NightvisionConfig config, PreferenceStore store)
     {
         _core = core;
@@ -48,6 +50,26 @@ public sealed class NightvisionManager : IDisposable
 
         UpdateBounds();
         _store.SetPersistenceEnabled(config.Behavior.SavePreferences);
+    }
+
+    /// <summary>
+    /// Starts the low-frequency maintenance timer. The engine may rebuild the
+    /// player's post-processing volume list, so active entries are re-added.
+    /// </summary>
+    public void Start()
+    {
+        Stop();
+        _reattachTimer = _core.Scheduler.RepeatBySeconds(1f, ReattachActive);
+    }
+
+    /// <summary>
+    /// Stops the maintenance timer.
+    /// </summary>
+    public void Stop()
+    {
+        _reattachTimer?.Cancel();
+        _reattachTimer?.Dispose();
+        _reattachTimer = null;
     }
 
     /// <summary>Lowest selectable intensity after configuration normalization.</summary>
@@ -293,6 +315,67 @@ public sealed class NightvisionManager : IDisposable
     }
 
     /// <summary>
+    /// Blocks all active volumes for a player who just connected or spawned.
+    /// </summary>
+    public void BlockActiveForPlayer(int playerId)
+    {
+        lock (_lock)
+        {
+            foreach (var (ownerId, entity) in _active)
+            {
+                if (ownerId != playerId)
+                {
+                    entity.BlockFor(playerId);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-adds active volumes to their owners' camera services list.
+    /// </summary>
+    public void ReattachActive()
+    {
+        lock (_lock)
+        {
+            foreach (var entity in _active.Values)
+            {
+                entity.AttachToOwner();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns a diagnostic string for the <c>!nvdebug</c> command.
+    /// </summary>
+    public string GetDiagnostics(IPlayer player)
+    {
+        lock (_lock)
+        {
+            var preference = GetPreferenceLocked(player);
+            var active = _active.TryGetValue(player.PlayerID, out var entity);
+            var camera = player.PlayerPawn?.CameraServices;
+            var cameraVolumes = camera?.PostProcessingVolumes.Count ?? -1;
+
+            var postProcess = "unknown";
+            try
+            {
+                postProcess = player.GetClientConvarValue("mat_postprocess_enable");
+            }
+            catch
+            {
+                // Client convar should never break diagnostics.
+            }
+
+            return $"player={player.PlayerID} valid={player.IsValid} fake={player.IsFakeClient} "
+                + $"team={player.PlayerPawn?.Team} postProcess={postProcess} prefEnabled={preference.Enabled} "
+                + $"intensity={ClampIntensity(preference.Intensity):0.00} active={active} "
+                + $"cameraVolumes={cameraVolumes} "
+                + $"entity={(active ? entity!.GetDiagnostics() : "none")}";
+        }
+    }
+
+    /// <summary>
     /// Applies a new configuration at runtime.
     /// </summary>
     public void ApplyConfig(NightvisionConfig config)
@@ -329,6 +412,7 @@ public sealed class NightvisionManager : IDisposable
 
                 entity.ApplyConfig(config);
                 entity.SetIntensity(intensity);
+                entity.AttachToOwner();
             }
 
             PersistLocked();
@@ -347,6 +431,8 @@ public sealed class NightvisionManager : IDisposable
     /// </summary>
     public void Shutdown()
     {
+        Stop();
+
         lock (_lock)
         {
             CleanupActiveLocked("plugin_unload");
@@ -407,6 +493,7 @@ public sealed class NightvisionManager : IDisposable
             {
                 existing.ApplyConfig(_config);
                 existing.SetIntensity(ClampIntensity(intensity));
+                existing.AttachToOwner();
                 return true;
             }
 
