@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- Disabling night vision now restores the previous map/tonemap exposure for a short transition before removing the volume, avoiding a brightness spike.
+- Disabling night vision now briefly applies a neutral exposure, capped at the current intensity, before removing the volume to avoid a brightness spike.
 
 ## [1.0.0] - 2026-10-25
 

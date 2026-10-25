@@ -1,6 +1,8 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
 using Sws2Nightvision.Configuration;
 
 namespace Sws2Nightvision.Services;
@@ -356,6 +358,19 @@ public sealed class NightvisionManager : IDisposable
             var camera = player.PlayerPawn?.CameraServices;
             var cameraVolumes = camera?.PostProcessingVolumes.Count ?? -1;
 
+            var volumeDetails = "none";
+            if (camera is not null)
+            {
+                try
+                {
+                    volumeDetails = DescribeVolumes(camera);
+                }
+                catch
+                {
+                    volumeDetails = "error";
+                }
+            }
+
             var postProcess = "unknown";
             try
             {
@@ -369,7 +384,7 @@ public sealed class NightvisionManager : IDisposable
             return $"player={player.PlayerID} valid={player.IsValid} fake={player.IsFakeClient} "
                 + $"team={player.PlayerPawn?.Team} postProcess={postProcess} prefEnabled={preference.Enabled} "
                 + $"intensity={ClampIntensity(preference.Intensity):0.00} active={active} "
-                + $"cameraVolumes={cameraVolumes} "
+                + $"cameraVolumes={cameraVolumes} volumes=[{volumeDetails}] "
                 + $"entity={(active ? entity!.GetDiagnostics() : "none")}";
         }
     }
@@ -585,6 +600,28 @@ public sealed class NightvisionManager : IDisposable
     private static float Sanitize(float value, float fallback)
     {
         return float.IsFinite(value) ? value : fallback;
+    }
+
+    private static string DescribeVolumes(CCSPlayer_CameraServices camera)
+    {
+        var builder = new StringBuilder();
+        ref var volumes = ref camera.PostProcessingVolumes;
+
+        for (var index = 0; index < volumes.Count; index++)
+        {
+            var volume = volumes[index].Value;
+            if (volume is null)
+            {
+                builder.Append($"[{index}: invalid] ");
+                continue;
+            }
+
+            builder.Append(
+                $"[{index}: idx={volume.Index} master={volume.Master} exp={volume.ExposureControl} "
+                + $"min={volume.MinExposure:0.00} max={volume.MaxExposure:0.00}] ");
+        }
+
+        return builder.ToString().TrimEnd();
     }
 
     private void Debug(string message, params object?[] args)

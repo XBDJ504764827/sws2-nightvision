@@ -12,6 +12,7 @@ namespace Sws2Nightvision.Services;
 public sealed class NightvisionEntity : IDisposable
 {
     private const float ExposureAdaptationSpeed = 10f;
+    private const float NormalExposure = 1f;
 
     private readonly ISwiftlyCore _core;
     private readonly int _playerId;
@@ -20,11 +21,6 @@ public sealed class NightvisionEntity : IDisposable
     private bool _spawned;
     private bool _disposed;
     private bool _pendingDisable;
-
-    private float _normalMinExposure = 1f;
-    private float _normalMaxExposure = 1f;
-    private bool _normalExposureCaptured;
-    private nint _normalCameraAddress;
 
     public NightvisionEntity(ISwiftlyCore core, int playerId)
     {
@@ -152,14 +148,6 @@ public sealed class NightvisionEntity : IDisposable
                 return;
             }
 
-            if (_normalCameraAddress != camera.Address)
-            {
-                _normalCameraAddress = camera.Address;
-                _normalExposureCaptured = false;
-            }
-
-            CaptureNormalExposure(camera);
-
             var handle = _core.EntitySystem.GetRefEHandle(_volume);
             ref var volumes = ref camera.PostProcessingVolumes;
 
@@ -234,76 +222,7 @@ public sealed class NightvisionEntity : IDisposable
         return $"index={_volume.Index} ownerTransmit={transmitting} attached={attached} "
             + $"master={_volume.Master} exposureControl={_volume.ExposureControl} "
             + $"min={_volume.MinExposure:0.00} max={_volume.MaxExposure:0.00} "
-            + $"normal={_normalMinExposure:0.00}-{_normalMaxExposure:0.00}";
-    }
-
-    private void CaptureNormalExposure(CCSPlayer_CameraServices camera)
-    {
-        if (_normalExposureCaptured)
-        {
-            return;
-        }
-
-        // Prefer another post-processing volume (for example a map master
-        // volume) because that is what the client will fall back to when this
-        // volume is removed.
-        try
-        {
-            ref var volumes = ref camera.PostProcessingVolumes;
-
-            for (var index = 0; index < volumes.Count; index++)
-            {
-                var other = volumes[index].Value;
-                if (other is null
-                    || _volume is null
-                    || other.Index == _volume.Index
-                    || !other.ExposureControl)
-                {
-                    continue;
-                }
-
-                if (IsSaneExposure(other.MinExposure, other.MaxExposure))
-                {
-                    _normalMinExposure = other.MinExposure;
-                    _normalMaxExposure = other.MaxExposure;
-                    _normalExposureCaptured = true;
-                    return;
-                }
-            }
-        }
-        catch
-        {
-            // Fall through to the tonemap controller/default.
-        }
-
-        try
-        {
-            var tonemap = camera.TonemapController.Value;
-            var min = tonemap?.AutoExposureMin ?? 1f;
-            var max = tonemap?.AutoExposureMax ?? 1f;
-
-            if (IsSaneExposure(min, max))
-            {
-                _normalMinExposure = min;
-                _normalMaxExposure = max;
-            }
-        }
-        catch
-        {
-            _normalMinExposure = 1f;
-            _normalMaxExposure = 1f;
-        }
-
-        _normalExposureCaptured = true;
-    }
-
-    private static bool IsSaneExposure(float min, float max)
-    {
-        return float.IsFinite(min)
-            && float.IsFinite(max)
-            && min >= 0.01f
-            && max >= min
-            && max <= 64f;
+            + $"normal={NormalExposure:0.00}";
     }
 
     private void ApplyEffect(NightvisionConfig config)
@@ -425,11 +344,24 @@ public sealed class NightvisionEntity : IDisposable
 
         try
         {
-            // Restore the exposure the player had before night vision for the
-            // transition frame, then remove the volume after a short delay.
-            _volume!.MinExposure = _normalMinExposure;
-            _volume.MaxExposure = _normalMaxExposure;
+            // Never brighten while disabling: use normal exposure, capped at
+            // the player's current night vision intensity.
+            var currentIntensity = _volume!.MinExposure;
+            var transitionExposure = Math.Min(NormalExposure, currentIntensity);
+            transitionExposure = Math.Max(0.1f, transitionExposure);
+
+            _volume.MinExposure = transitionExposure;
+            _volume.MaxExposure = transitionExposure;
             _volume.ExposureCompensation = 0f;
+
+            if (_core.Logger.IsEnabled(LogLevel.Debug))
+            {
+                _core.Logger.LogDebug(
+                    "[sws2-nightvision] Disabling night vision for player {PlayerId}: current={Current:0.00}, transition={Transition:0.00}",
+                    _playerId,
+                    currentIntensity,
+                    transitionExposure);
+            }
             _volume.ExposureFadeSpeedUp = ExposureAdaptationSpeed;
             _volume.ExposureFadeSpeedDown = ExposureAdaptationSpeed;
             _volume.TonemapEVSmoothingRange = 0f;
