@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Avoid blocking the owner during initial entity transmission.
 - Block new players from receiving other players' night vision volumes.
 - Add `!nvdebug` diagnostics and a post-processing-disabled hint.
+- Give every PR CI run a traceable version such as `1.0.1-pr.12.37`.
 
 ## [1.0.0] - 2026-10-25
 

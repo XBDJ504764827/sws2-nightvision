@@ -49,7 +49,7 @@ jobs:
           fi
 
           if [ -n "${PR_NUMBER:-}" ]; then
-            VERSION="${BASE_VERSION}-pr.${PR_NUMBER}"
+            VERSION="${BASE_VERSION}-pr.${PR_NUMBER}.${RUN_NUMBER}"
           elif [ "${GITHUB_REF_NAME}" = "develop" ]; then
             VERSION="${BASE_VERSION}-dev.${RUN_NUMBER}"
           else
@@ -201,7 +201,7 @@ jobs:
 
           # Replace any previous preview for this PR so the latest tag always
           # points at the current commit and the asset is fresh.
-          PREV_TAGS=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+-pr\.${PR_NUMBER}$" || true)
+          PREV_TAGS=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+-pr\.${PR_NUMBER}(\.[0-9]+)?$" || true)
 
           if [ -n "$PREV_TAGS" ]; then
             while read -r OLD_TAG; do

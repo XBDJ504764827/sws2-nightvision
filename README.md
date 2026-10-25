@@ -157,7 +157,8 @@ The release package is generated at `build/sws2-nightvision.zip`.
 This repository uses a `develop` → `main` flow:
 
 - Pull requests run CI: `dotnet format`, Release build, package validation and a test-package artifact.
-- For pull requests from this repository, CI also publishes/updates a pre-release named `vX.Y.Z-pr.<number>` so the package can be downloaded directly from Releases. The pre-release is removed when the PR is closed.
+- Each PR run gets a traceable preview version such as `1.0.1-pr.12.37`, so the installed build can be identified from the plugin version.
+- For pull requests from this repository, CI also publishes/updates a pre-release named `vX.Y.Z-pr.<PR>.<run>` so the package can be downloaded directly from Releases. The pre-release is removed when the PR is closed.
 - When a PR is merged into `main`, the release workflow computes the next patch version from the latest stable `vX.Y.Z` tag, injects it into `src/VersionInfo.cs`, builds the package, creates the tag and publishes a GitHub Release.
 - A manual release can be started with `workflow_dispatch` and a `patch`, `minor` or `major` bump.
 
