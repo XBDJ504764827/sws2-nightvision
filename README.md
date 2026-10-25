@@ -47,7 +47,7 @@ csgo/addons/swiftlys2/plugins/
 | `!nv off` | Disable night vision |
 | `!nvi [intensity]` / `!nvintensity [intensity]` | Set your intensity, or show the current value and range |
 | `!nvstatus` | Show whether night vision is enabled and the current intensity |
-| `!nvdebug` | Write detailed diagnostics to your console and the server log |
+| `!nvdebug` | Write detailed diagnostics to your console. Also logged server-side when `Debug` is enabled. |
 
 Commands are registered as raw commands, so they can also be bound in the client console:
 
@@ -55,7 +55,7 @@ Commands are registered as raw commands, so they can also be bound in the client
 bind n "nv"
 ```
 
-Intensity is an exposure value: higher values brighten the scene more. The default `3.0` works well on dark maps; values around `1.0`–`2.0` give a subtler effect.
+Intensity is an exposure value: higher values brighten the scene more. The default `1.0` is a subtle boost; use `2.0`–`3.0` on very dark maps.
 
 ## Configuration
 
@@ -72,7 +72,7 @@ The first load creates `csgo/addons/swiftlys2/configs/plugins/sws2-nightvision/c
       "Enabled": true,
 
       // Intensity for players without a saved preference.
-      "DefaultIntensity": 3.0,
+      "DefaultIntensity": 1.0,
 
       // Allowed intensity range for !nvi.
       "MinIntensity": 0.5,
@@ -116,11 +116,13 @@ The first load creates `csgo/addons/swiftlys2/configs/plugins/sws2-nightvision/c
 
 Player preferences are stored in `csgo/addons/swiftlys2/configs/plugins/sws2-nightvision/preferences.json`.
 
+> Upgrading the plugin does not overwrite an existing `config.jsonc`. If you are upgrading from an early preview and want the new default intensity, set `DefaultIntensity` to `1.0` manually or delete `config.jsonc` so it is regenerated from the template. Saved player preferences are not changed automatically.
+
 ## Troubleshooting
 
 If night vision is enabled but nothing changes on screen:
 
-1. Run `!nvdebug` and check the output in your client console and the server console.
+1. Run `!nvdebug` and check the output in your client console. Enable `Debug` in the config to also write it to the server log.
 2. Make sure your client has post-processing enabled:
 
    ```
@@ -138,6 +140,7 @@ The plugin creates a private `post_processing_volume` entity for each player who
 - `MinExposure` and `MaxExposure` are set to the player's intensity.
 - The volume is attached to the owner's `CameraServices.PostProcessingVolumes` list.
 - Transmission is blocked for every other player; the owner is never blocked.
+- On disable, the volume stays attached in an idle state and switches to the map's exposure range (or neutral `1.0`), avoiding a remove/recreate flash. It is disposed on disconnect, map change or plugin unload.
 
 This is the same exposure-control approach used by [rcnoob/Nightvision](https://github.com/rcnoob/Nightvision), with explicit camera-service attachment for SwiftlyS2. Because the volume is a master post-processing volume, the effect is applied by the client without modifying map lighting.
 

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
+### Changed
+
+- Default night vision intensity is now `1.0` instead of `3.0`.
+
+### Fixed
+
+- Disabling night vision now keeps the post-processing volume attached in an idle state using the map's exposure range, avoiding a remove/recreate brightness spike. Idle volumes are cleaned up on disconnect, map change and plugin unload.
+
 ## [1.0.0] - 2026-10-25
 
 ### Added

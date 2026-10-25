@@ -1,6 +1,8 @@
+using System.Text;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
 using Sws2Nightvision.Configuration;
 
 namespace Sws2Nightvision.Services;
@@ -126,11 +128,17 @@ public sealed class NightvisionManager : IDisposable
         var preference = GetPreferenceLocked(player);
 
         // Turning night vision off must always work, even while dead or
-        // spectating.
+        // spectating. Keep the volume alive and switch it to the map's normal
+        // exposure so there is no hard removal/creation flash.
         if (!enabled)
         {
             preference.Enabled = false;
-            RemoveActiveLocked(player.PlayerID, "toggle");
+
+            if (_active.TryGetValue(player.PlayerID, out var idleEntity))
+            {
+                idleEntity.SetIdle();
+            }
+
             PersistLocked();
             return NightvisionToggleResult.Disabled;
         }
@@ -167,7 +175,8 @@ public sealed class NightvisionManager : IDisposable
             var preference = GetPreferenceLocked(player);
             preference.Intensity = applied;
 
-            if (_active.TryGetValue(player.PlayerID, out var entity))
+            if (preference.Enabled
+                && _active.TryGetValue(player.PlayerID, out var entity))
             {
                 entity.SetIntensity(applied);
             }
@@ -213,7 +222,9 @@ public sealed class NightvisionManager : IDisposable
                 PersistLocked();
             }
 
-            var active = _active.TryGetValue(player.PlayerID, out var entity) && entity.IsActive;
+            var active = preference.Enabled
+                && _active.TryGetValue(player.PlayerID, out var entity)
+                && entity.IsActive;
 
             return new NightvisionStatus(
                 preference.Enabled,
@@ -270,7 +281,10 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
-            RemoveActiveLocked(playerId, reason);
+            if (_active.TryGetValue(playerId, out var entity))
+            {
+                entity.SetIdle();
+            }
 
             if (!clearPreference)
             {
@@ -286,6 +300,7 @@ public sealed class NightvisionManager : IDisposable
             var preference = GetPreferenceLocked(player);
             preference.Enabled = false;
             PersistLocked();
+            Debug("Night vision disabled for player {PlayerId} ({Reason})", playerId, reason);
         }
     }
 
@@ -351,9 +366,23 @@ public sealed class NightvisionManager : IDisposable
         lock (_lock)
         {
             var preference = GetPreferenceLocked(player);
-            var active = _active.TryGetValue(player.PlayerID, out var entity);
+            var hasEntity = _active.TryGetValue(player.PlayerID, out var entity);
+            var active = preference.Enabled && hasEntity && entity!.IsActive;
             var camera = player.PlayerPawn?.CameraServices;
             var cameraVolumes = camera?.PostProcessingVolumes.Count ?? -1;
+
+            var volumeDetails = "none";
+            if (camera is not null)
+            {
+                try
+                {
+                    volumeDetails = DescribeVolumes(camera);
+                }
+                catch
+                {
+                    volumeDetails = "error";
+                }
+            }
 
             var postProcess = "unknown";
             try
@@ -368,8 +397,8 @@ public sealed class NightvisionManager : IDisposable
             return $"player={player.PlayerID} valid={player.IsValid} fake={player.IsFakeClient} "
                 + $"team={player.PlayerPawn?.Team} postProcess={postProcess} prefEnabled={preference.Enabled} "
                 + $"intensity={ClampIntensity(preference.Intensity):0.00} active={active} "
-                + $"cameraVolumes={cameraVolumes} "
-                + $"entity={(active ? entity!.GetDiagnostics() : "none")}";
+                + $"cameraVolumes={cameraVolumes} volumes=[{volumeDetails}] "
+                + $"entity={(hasEntity ? entity!.GetDiagnostics() : "none")}";
         }
     }
 
@@ -409,7 +438,15 @@ public sealed class NightvisionManager : IDisposable
                 preference.Intensity = intensity;
 
                 entity.ApplyConfig(config);
-                entity.SetIntensity(intensity);
+
+                if (preference.Enabled)
+                {
+                    entity.SetIntensity(intensity);
+                }
+                else
+                {
+                    entity.SetIdle();
+                }
             }
 
             PersistLocked();
@@ -527,7 +564,7 @@ public sealed class NightvisionManager : IDisposable
 
     private void CleanupActiveLocked(string reason)
     {
-        foreach (var entity in _active.Values)
+        foreach (var entity in _active.Values.ToList())
         {
             entity.Dispose();
         }
@@ -549,7 +586,7 @@ public sealed class NightvisionManager : IDisposable
         _maxIntensity = Sanitize(_config.Behavior.MaxIntensity, 10f);
         _maxIntensity = Math.Clamp(_maxIntensity, _minIntensity, 32f);
 
-        _defaultIntensity = Sanitize(_config.Behavior.DefaultIntensity, 3f);
+        _defaultIntensity = Sanitize(_config.Behavior.DefaultIntensity, 1f);
         _defaultIntensity = Math.Clamp(_defaultIntensity, _minIntensity, _maxIntensity);
     }
 
@@ -563,6 +600,28 @@ public sealed class NightvisionManager : IDisposable
     private static float Sanitize(float value, float fallback)
     {
         return float.IsFinite(value) ? value : fallback;
+    }
+
+    private static string DescribeVolumes(CCSPlayer_CameraServices camera)
+    {
+        var builder = new StringBuilder();
+        ref var volumes = ref camera.PostProcessingVolumes;
+
+        for (var index = 0; index < volumes.Count; index++)
+        {
+            var volume = volumes[index].Value;
+            if (volume is null)
+            {
+                builder.Append($"[{index}: invalid] ");
+                continue;
+            }
+
+            builder.Append(
+                $"[{index}: idx={volume.Index} master={volume.Master} exp={volume.ExposureControl} "
+                + $"min={volume.MinExposure:0.00} max={volume.MaxExposure:0.00}] ");
+        }
+
+        return builder.ToString().TrimEnd();
     }
 
     private void Debug(string message, params object?[] args)
