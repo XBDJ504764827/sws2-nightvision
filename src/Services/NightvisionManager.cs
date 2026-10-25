@@ -34,6 +34,7 @@ public sealed class NightvisionManager : IDisposable
 
     private readonly Dictionary<int, NightvisionEntity> _active = new();
     private readonly Dictionary<int, PlayerPreference> _sessionPreferences = new();
+    private readonly HashSet<NightvisionEntity> _pendingDisposal = new();
 
     private NightvisionConfig _config;
     private float _minIntensity;
@@ -296,7 +297,7 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
-            RemoveActiveLocked(playerId, "disconnect");
+            RemoveActiveLocked(playerId, "disconnect", immediate: true);
             _sessionPreferences.Remove(playerId);
         }
     }
@@ -399,7 +400,7 @@ public sealed class NightvisionManager : IDisposable
                     || player is null
                     || GetEligibility(player) != NightvisionToggleResult.Enabled)
                 {
-                    entity.Dispose();
+                    entity.DisposeImmediate();
                     _active.Remove(playerId);
                     continue;
                 }
@@ -494,7 +495,7 @@ public sealed class NightvisionManager : IDisposable
             }
 
             _active.Remove(player.PlayerID);
-            existing.Dispose();
+            existing.DisposeImmediate();
         }
 
         if (GetEligibility(player) != NightvisionToggleResult.Enabled)
@@ -514,22 +515,43 @@ public sealed class NightvisionManager : IDisposable
         return true;
     }
 
-    private void RemoveActiveLocked(int playerId, string reason)
+    private void RemoveActiveLocked(int playerId, string reason, bool immediate = false)
     {
         if (!_active.Remove(playerId, out var entity))
         {
             return;
         }
 
-        entity.Dispose();
+        if (immediate)
+        {
+            entity.DisposeImmediate();
+        }
+        else
+        {
+            _pendingDisposal.Add(entity);
+            entity.BeginDisable(() =>
+            {
+                lock (_lock)
+                {
+                    _pendingDisposal.Remove(entity);
+                }
+            });
+        }
+
         Debug("Night vision volume removed for player {PlayerId} ({Reason})", playerId, reason);
     }
 
     private void CleanupActiveLocked(string reason)
     {
-        foreach (var entity in _active.Values)
+        foreach (var entity in _pendingDisposal.ToList())
         {
-            entity.Dispose();
+            entity.DisposeImmediate();
+            _pendingDisposal.Remove(entity);
+        }
+
+        foreach (var entity in _active.Values.ToList())
+        {
+            entity.DisposeImmediate();
         }
 
         _active.Clear();
@@ -549,7 +571,7 @@ public sealed class NightvisionManager : IDisposable
         _maxIntensity = Sanitize(_config.Behavior.MaxIntensity, 10f);
         _maxIntensity = Math.Clamp(_maxIntensity, _minIntensity, 32f);
 
-        _defaultIntensity = Sanitize(_config.Behavior.DefaultIntensity, 3f);
+        _defaultIntensity = Sanitize(_config.Behavior.DefaultIntensity, 1f);
         _defaultIntensity = Math.Clamp(_defaultIntensity, _minIntensity, _maxIntensity);
     }
 

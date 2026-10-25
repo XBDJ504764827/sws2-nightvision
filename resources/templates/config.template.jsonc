@@ -3,7 +3,7 @@
     "Debug": false,
     "Behavior": {
       "Enabled": true,
-      "DefaultIntensity": 3.0,
+      "DefaultIntensity": 1.0,
       "MinIntensity": 0.5,
       "MaxIntensity": 10.0,
       "AllowIntensityCommand": true,

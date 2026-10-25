@@ -24,7 +24,7 @@ public sealed class NightvisionBehavior
     public bool Enabled { get; set; } = true;
 
     /// <summary>Intensity used for players without a saved preference.</summary>
-    public float DefaultIntensity { get; set; } = 3.0f;
+    public float DefaultIntensity { get; set; } = 1.0f;
 
     /// <summary>Lowest intensity a player may select.</summary>
     public float MinIntensity { get; set; } = 0.5f;
