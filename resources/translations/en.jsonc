@@ -1,0 +1,21 @@
+{
+  "nightvision.prefix": "[green][NightVision][default]",
+  "nightvision.on": "Night vision [green]enabled[default] (intensity {0:0.0}).",
+  "nightvision.off": "Night vision [darkred]disabled[default].",
+  "nightvision.feature_disabled": "Night vision is disabled on this server.",
+  "nightvision.spectator_disabled": "Night vision is not available for spectators.",
+  "nightvision.unavailable": "Night vision is not available right now. Please wait until you spawn.",
+  "nightvision.failed": "Could not enable night vision. Please try again or contact an administrator.",
+  "nightvision.only_players": "This command can only be used by players.",
+  "nightvision.no_permission": "You do not have permission to use this command.",
+  "nightvision.usage": "Usage: [green]!nv [on|off|toggle][default].",
+  "nightvision.intensity.disabled": "Changing night vision intensity is disabled on this server.",
+  "nightvision.intensity.current": "Intensity: [green]{0:0.0}[default] (range {1:0.0}-{2:0.0}).",
+  "nightvision.intensity.invalid": "Invalid intensity. Use a number between [green]{0:0.0}[default] and [green]{1:0.0}[default].",
+  "nightvision.intensity.set": "Night vision intensity set to [green]{0:0.0}[default].",
+  "nightvision.status.on": "Night vision: [green]ON[default] | Intensity: [green]{0:0.0}[default]",
+  "nightvision.status.off": "Night vision: [darkred]OFF[default] | Intensity: [green]{0:0.0}[default]",
+  "nightvision.postprocess_disabled": "Your client has post-processing disabled. Set [green]mat_postprocess_enable 1[default] to see night vision.",
+  "nightvision.debug.sent": "Diagnostics written to your console.",
+  "nightvision.status.pending": "Night vision: [yellow]ON (pending)[default] | Intensity: [green]{0:0.0}[default]"
+}

@@ -1,0 +1,21 @@
+{
+  "nightvision.prefix": "[green][夜视][default]",
+  "nightvision.on": "夜视已[green]开启[default]（强度 {0:0.0}）。",
+  "nightvision.off": "夜视已[darkred]关闭[default]。",
+  "nightvision.feature_disabled": "本服务器已禁用夜视功能。",
+  "nightvision.spectator_disabled": "观察者无法使用夜视。",
+  "nightvision.unavailable": "当前无法使用夜视，请等待出生后再试。",
+  "nightvision.failed": "无法开启夜视，请重试或联系管理员。",
+  "nightvision.only_players": "该命令只能由玩家使用。",
+  "nightvision.no_permission": "你没有权限使用该命令。",
+  "nightvision.usage": "用法：[green]!nv [on|off|toggle][default]。",
+  "nightvision.intensity.disabled": "本服务器已禁用夜视强度调整。",
+  "nightvision.intensity.current": "当前强度：[green]{0:0.0}[default]（范围 {1:0.0}-{2:0.0}）。",
+  "nightvision.intensity.invalid": "强度无效，请输入 [green]{0:0.0}[default] 到 [green]{1:0.0}[default] 之间的数字。",
+  "nightvision.intensity.set": "夜视强度已设置为 [green]{0:0.0}[default]。",
+  "nightvision.status.on": "夜视：[green]开启[default] | 强度：[green]{0:0.0}[default]",
+  "nightvision.status.off": "夜视：[darkred]关闭[default] | 强度：[green]{0:0.0}[default]",
+  "nightvision.postprocess_disabled": "你的客户端禁用了后处理，请设置 [green]mat_postprocess_enable 1[default] 才能看到夜视效果。",
+  "nightvision.debug.sent": "诊断信息已输出到你的控制台。",
+  "nightvision.status.pending": "夜视：[yellow]开启（待生效）[default] | 强度：[green]{0:0.0}[default]"
+}

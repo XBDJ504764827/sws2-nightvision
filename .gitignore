@@ -1,0 +1,22 @@
+# Build output
+build/
+bin/
+obj/
+*.user
+
+# Toolchain (local .NET SDK install for sandboxed builds)
+.tools/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Local testing / research
+.research/
+*.zip
+*.dll
+
+# OS
+.DS_Store
+Thumbs.db
