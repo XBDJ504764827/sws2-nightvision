@@ -1,0 +1,19 @@
+{
+  "nightvision.prefix": "[green][夜視][default]",
+  "nightvision.on": "夜視已[green]開啟[default]（強度 {0:0.0}）。",
+  "nightvision.off": "夜視已[darkred]關閉[default]。",
+  "nightvision.feature_disabled": "本伺服器已停用夜視功能。",
+  "nightvision.spectator_disabled": "觀察者無法使用夜視。",
+  "nightvision.unavailable": "目前無法使用夜視，請等待重生後再試。",
+  "nightvision.failed": "無法開啟夜視，請重試或聯絡管理員。",
+  "nightvision.only_players": "此指令只能由玩家使用。",
+  "nightvision.no_permission": "你沒有權限使用此指令。",
+  "nightvision.usage": "用法：[green]!nv [on|off|toggle][default]。",
+  "nightvision.intensity.disabled": "本伺服器已停用夜視強度調整。",
+  "nightvision.intensity.current": "目前強度：[green]{0:0.0}[default]（範圍 {1:0.0}-{2:0.0}）。",
+  "nightvision.intensity.invalid": "強度無效，請輸入 [green]{0:0.0}[default] 到 [green]{1:0.0}[default] 之間的數字。",
+  "nightvision.intensity.set": "夜視強度已設定為 [green]{0:0.0}[default]。",
+  "nightvision.status.on": "夜視：[green]開啟[default] | 強度：[green]{0:0.0}[default]",
+  "nightvision.status.off": "夜視：[darkred]關閉[default] | 強度：[green]{0:0.0}[default]",
+  "nightvision.status.pending": "夜視：[yellow]開啟（待生效）[default] | 強度：[green]{0:0.0}[default]"
+}

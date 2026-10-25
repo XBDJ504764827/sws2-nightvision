@@ -1,0 +1,25 @@
+{
+  "sws2-nightvision": {
+    "Debug": false,
+    "Behavior": {
+      "Enabled": true,
+      "DefaultIntensity": 3.0,
+      "MinIntensity": 0.5,
+      "MaxIntensity": 10.0,
+      "AllowIntensityCommand": true,
+      "IntensityPermission": "",
+      "NotifyOnToggle": true,
+      "TurnOffOnDeath": false,
+      "TurnOffOnTeamSwitch": true,
+      "DisableInSpectator": true,
+      "SavePreferences": true,
+      "RestorePreferencesOnSpawn": true
+    },
+    "Effect": {
+      "FadeDuration": 0.0,
+      "ExposureCompensation": 0.0,
+      "ExposureFadeSpeedUp": 0.5,
+      "ExposureFadeSpeedDown": 0.5
+    }
+  }
+}
