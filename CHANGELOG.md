@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
-- Disabling night vision now briefly applies a neutral exposure, capped at the current intensity, before removing the volume to avoid a brightness spike.
+- Disabling night vision now keeps the post-processing volume attached in an idle state using the map's exposure range, avoiding a remove/recreate brightness spike. Idle volumes are cleaned up on disconnect, map change and plugin unload.
 
 ## [1.0.0] - 2026-10-25
 

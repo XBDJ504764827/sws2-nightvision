@@ -140,7 +140,7 @@ The plugin creates a private `post_processing_volume` entity for each player who
 - `MinExposure` and `MaxExposure` are set to the player's intensity.
 - The volume is attached to the owner's `CameraServices.PostProcessingVolumes` list.
 - Transmission is blocked for every other player; the owner is never blocked.
-- On disable, the plugin briefly applies a neutral exposure (never brighter than the current night vision intensity), then removes the volume to avoid a brightness flash.
+- On disable, the volume stays attached in an idle state and switches to the map's exposure range (or neutral `1.0`), avoiding a remove/recreate flash. It is disposed on disconnect, map change or plugin unload.
 
 This is the same exposure-control approach used by [rcnoob/Nightvision](https://github.com/rcnoob/Nightvision), with explicit camera-service attachment for SwiftlyS2. Because the volume is a master post-processing volume, the effect is applied by the client without modifying map lighting.
 

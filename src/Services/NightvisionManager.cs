@@ -36,7 +36,6 @@ public sealed class NightvisionManager : IDisposable
 
     private readonly Dictionary<int, NightvisionEntity> _active = new();
     private readonly Dictionary<int, PlayerPreference> _sessionPreferences = new();
-    private readonly HashSet<NightvisionEntity> _pendingDisposal = new();
 
     private NightvisionConfig _config;
     private float _minIntensity;
@@ -129,11 +128,17 @@ public sealed class NightvisionManager : IDisposable
         var preference = GetPreferenceLocked(player);
 
         // Turning night vision off must always work, even while dead or
-        // spectating.
+        // spectating. Keep the volume alive and switch it to the map's normal
+        // exposure so there is no hard removal/creation flash.
         if (!enabled)
         {
             preference.Enabled = false;
-            RemoveActiveLocked(player.PlayerID, "toggle");
+
+            if (_active.TryGetValue(player.PlayerID, out var idleEntity))
+            {
+                idleEntity.SetIdle();
+            }
+
             PersistLocked();
             return NightvisionToggleResult.Disabled;
         }
@@ -170,7 +175,8 @@ public sealed class NightvisionManager : IDisposable
             var preference = GetPreferenceLocked(player);
             preference.Intensity = applied;
 
-            if (_active.TryGetValue(player.PlayerID, out var entity))
+            if (preference.Enabled
+                && _active.TryGetValue(player.PlayerID, out var entity))
             {
                 entity.SetIntensity(applied);
             }
@@ -216,7 +222,9 @@ public sealed class NightvisionManager : IDisposable
                 PersistLocked();
             }
 
-            var active = _active.TryGetValue(player.PlayerID, out var entity) && entity.IsActive;
+            var active = preference.Enabled
+                && _active.TryGetValue(player.PlayerID, out var entity)
+                && entity.IsActive;
 
             return new NightvisionStatus(
                 preference.Enabled,
@@ -273,7 +281,10 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
-            RemoveActiveLocked(playerId, reason);
+            if (_active.TryGetValue(playerId, out var entity))
+            {
+                entity.SetIdle();
+            }
 
             if (!clearPreference)
             {
@@ -289,6 +300,7 @@ public sealed class NightvisionManager : IDisposable
             var preference = GetPreferenceLocked(player);
             preference.Enabled = false;
             PersistLocked();
+            Debug("Night vision disabled for player {PlayerId} ({Reason})", playerId, reason);
         }
     }
 
@@ -299,7 +311,7 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
-            RemoveActiveLocked(playerId, "disconnect", immediate: true);
+            RemoveActiveLocked(playerId, "disconnect");
             _sessionPreferences.Remove(playerId);
         }
     }
@@ -354,7 +366,8 @@ public sealed class NightvisionManager : IDisposable
         lock (_lock)
         {
             var preference = GetPreferenceLocked(player);
-            var active = _active.TryGetValue(player.PlayerID, out var entity);
+            var hasEntity = _active.TryGetValue(player.PlayerID, out var entity);
+            var active = preference.Enabled && hasEntity && entity!.IsActive;
             var camera = player.PlayerPawn?.CameraServices;
             var cameraVolumes = camera?.PostProcessingVolumes.Count ?? -1;
 
@@ -385,7 +398,7 @@ public sealed class NightvisionManager : IDisposable
                 + $"team={player.PlayerPawn?.Team} postProcess={postProcess} prefEnabled={preference.Enabled} "
                 + $"intensity={ClampIntensity(preference.Intensity):0.00} active={active} "
                 + $"cameraVolumes={cameraVolumes} volumes=[{volumeDetails}] "
-                + $"entity={(active ? entity!.GetDiagnostics() : "none")}";
+                + $"entity={(hasEntity ? entity!.GetDiagnostics() : "none")}";
         }
     }
 
@@ -415,7 +428,7 @@ public sealed class NightvisionManager : IDisposable
                     || player is null
                     || GetEligibility(player) != NightvisionToggleResult.Enabled)
                 {
-                    entity.DisposeImmediate();
+                    entity.Dispose();
                     _active.Remove(playerId);
                     continue;
                 }
@@ -425,7 +438,15 @@ public sealed class NightvisionManager : IDisposable
                 preference.Intensity = intensity;
 
                 entity.ApplyConfig(config);
-                entity.SetIntensity(intensity);
+
+                if (preference.Enabled)
+                {
+                    entity.SetIntensity(intensity);
+                }
+                else
+                {
+                    entity.SetIdle();
+                }
             }
 
             PersistLocked();
@@ -510,7 +531,7 @@ public sealed class NightvisionManager : IDisposable
             }
 
             _active.Remove(player.PlayerID);
-            existing.DisposeImmediate();
+            existing.Dispose();
         }
 
         if (GetEligibility(player) != NightvisionToggleResult.Enabled)
@@ -530,43 +551,22 @@ public sealed class NightvisionManager : IDisposable
         return true;
     }
 
-    private void RemoveActiveLocked(int playerId, string reason, bool immediate = false)
+    private void RemoveActiveLocked(int playerId, string reason)
     {
         if (!_active.Remove(playerId, out var entity))
         {
             return;
         }
 
-        if (immediate)
-        {
-            entity.DisposeImmediate();
-        }
-        else
-        {
-            _pendingDisposal.Add(entity);
-            entity.BeginDisable(() =>
-            {
-                lock (_lock)
-                {
-                    _pendingDisposal.Remove(entity);
-                }
-            });
-        }
-
+        entity.Dispose();
         Debug("Night vision volume removed for player {PlayerId} ({Reason})", playerId, reason);
     }
 
     private void CleanupActiveLocked(string reason)
     {
-        foreach (var entity in _pendingDisposal.ToList())
-        {
-            entity.DisposeImmediate();
-            _pendingDisposal.Remove(entity);
-        }
-
         foreach (var entity in _active.Values.ToList())
         {
-            entity.DisposeImmediate();
+            entity.Dispose();
         }
 
         _active.Clear();

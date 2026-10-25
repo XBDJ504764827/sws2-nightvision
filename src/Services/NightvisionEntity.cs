@@ -20,7 +20,6 @@ public sealed class NightvisionEntity : IDisposable
     private CPostProcessingVolume? _volume;
     private bool _spawned;
     private bool _disposed;
-    private bool _pendingDisable;
 
     public NightvisionEntity(ISwiftlyCore core, int playerId)
     {
@@ -31,14 +30,17 @@ public sealed class NightvisionEntity : IDisposable
     /// <summary>Whether the underlying entity is still valid.</summary>
     public bool IsActive => !_disposed && _volume is { IsValid: true };
 
+    /// <summary>Whether the volume is attached but currently using the map's normal exposure.</summary>
+    public bool IsIdle { get; private set; }
+
     /// <summary>
     /// Creates and spawns the post-processing volume, then limits transmission to the owner.
     /// </summary>
     public bool Create(NightvisionConfig config, float intensity)
     {
-        if (_disposed || _pendingDisable || IsActive)
+        if (_disposed || IsActive)
         {
-            return IsActive && !_pendingDisable;
+            return IsActive;
         }
 
         try
@@ -99,11 +101,16 @@ public sealed class NightvisionEntity : IDisposable
             return;
         }
 
+        IsIdle = false;
         ApplyIntensity(intensity);
 
         if (_spawned)
         {
-            _volume!.MinExposureUpdated();
+            _volume!.Master = true;
+            _volume.ExposureControl = true;
+            _volume.MasterUpdated();
+            _volume.ExposureControlUpdated();
+            _volume.MinExposureUpdated();
             _volume.MaxExposureUpdated();
         }
     }
@@ -126,6 +133,115 @@ public sealed class NightvisionEntity : IDisposable
         }
 
         AttachToOwner();
+    }
+
+    /// <summary>
+    /// Keeps the volume alive but switches it to the map's normal exposure.
+    /// This avoids a hard volume removal/creation cycle (and its exposure flash)
+    /// when the player toggles night vision off and on.
+    /// </summary>
+    public void SetIdle()
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        IsIdle = true;
+
+        var (found, min, max) = GetMapExposureRange();
+
+        try
+        {
+            // If the map has its own exposure range, mirror it so the player
+            // sees the same brightness as before night vision was enabled. If
+            // not, make the volume inert instead of forcing an arbitrary level.
+            _volume!.Master = found;
+            _volume.ExposureControl = found;
+            _volume.MinExposure = found ? min : NormalExposure;
+            _volume.MaxExposure = found ? max : NormalExposure;
+            _volume.ExposureCompensation = 0f;
+            _volume.ExposureFadeSpeedUp = ExposureAdaptationSpeed;
+            _volume.ExposureFadeSpeedDown = ExposureAdaptationSpeed;
+            _volume.TonemapEVSmoothingRange = 0f;
+            _volume.MasterUpdated();
+            _volume.ExposureControlUpdated();
+            _volume.MinExposureUpdated();
+            _volume.MaxExposureUpdated();
+            _volume.ExposureCompensationUpdated();
+            _volume.ExposureFadeSpeedUpUpdated();
+            _volume.ExposureFadeSpeedDownUpdated();
+            _volume.TonemapEVSmoothingRangeUpdated();
+        }
+        catch (Exception exception)
+        {
+            _core.Logger.LogDebug(
+                exception,
+                "[sws2-nightvision] Failed to put volume into idle mode for player {PlayerId}",
+                _playerId);
+        }
+
+        if (_core.Logger.IsEnabled(LogLevel.Debug))
+        {
+            _core.Logger.LogDebug(
+                "[sws2-nightvision] Night vision idle for player {PlayerId}: found={Found} exposure={Min:0.00}-{Max:0.00}",
+                _playerId,
+                found,
+                min,
+                max);
+        }
+    }
+
+    private (bool Found, float Min, float Max) GetMapExposureRange()
+    {
+        try
+        {
+            var player = _core.PlayerManager.GetPlayer(_playerId);
+            var camera = player?.PlayerPawn?.CameraServices;
+            if (camera is not null && _volume is not null)
+            {
+                ref var volumes = ref camera.PostProcessingVolumes;
+
+                for (var index = 0; index < volumes.Count; index++)
+                {
+                    var other = volumes[index].Value;
+                    if (other is null
+                        || other.Index == _volume.Index
+                        || !other.ExposureControl)
+                    {
+                        continue;
+                    }
+
+                    if (IsSaneExposure(other.MinExposure, other.MaxExposure))
+                    {
+                        return (true, other.MinExposure, other.MaxExposure);
+                    }
+                }
+
+                var tonemap = camera.TonemapController.Value;
+                var min = tonemap?.AutoExposureMin ?? 0f;
+                var max = tonemap?.AutoExposureMax ?? 0f;
+                if (IsSaneExposure(min, max))
+                {
+                    return (true, min, max);
+                }
+            }
+        }
+        catch
+        {
+            // Fall through to inert mode.
+        }
+
+        return (false, NormalExposure, NormalExposure);
+    }
+
+    private static bool IsSaneExposure(float min, float max)
+    {
+        return float.IsFinite(min)
+            && float.IsFinite(max)
+            && min >= 0.01f
+            && max >= min
+            && max <= 64f;
     }
 
     /// <summary>
@@ -219,10 +335,9 @@ public sealed class NightvisionEntity : IDisposable
             // Diagnostics must never throw.
         }
 
-        return $"index={_volume.Index} ownerTransmit={transmitting} attached={attached} "
+        return $"index={_volume.Index} ownerTransmit={transmitting} attached={attached} idle={IsIdle} "
             + $"master={_volume.Master} exposureControl={_volume.ExposureControl} "
-            + $"min={_volume.MinExposure:0.00} max={_volume.MaxExposure:0.00} "
-            + $"normal={NormalExposure:0.00}";
+            + $"min={_volume.MinExposure:0.00} max={_volume.MaxExposure:0.00}";
     }
 
     private void ApplyEffect(NightvisionConfig config)
@@ -321,78 +436,9 @@ public sealed class NightvisionEntity : IDisposable
     }
 
     /// <summary>
-    /// Smoothly disables the effect: restore normal exposure for a short
-    /// transition, then remove the volume. This avoids the exposure overshoot
-    /// some clients show when an active master volume is removed immediately.
+    /// Destroys the post-processing volume.
     /// </summary>
-    public void BeginDisable(Action? onCompleted = null)
-    {
-        if (_disposed || _pendingDisable)
-        {
-            onCompleted?.Invoke();
-            return;
-        }
-
-        if (!IsActive || !_spawned)
-        {
-            DisposeImmediate();
-            onCompleted?.Invoke();
-            return;
-        }
-
-        _pendingDisable = true;
-
-        try
-        {
-            // Never brighten while disabling: use normal exposure, capped at
-            // the player's current night vision intensity.
-            var currentIntensity = _volume!.MinExposure;
-            var transitionExposure = Math.Min(NormalExposure, currentIntensity);
-            transitionExposure = Math.Max(0.1f, transitionExposure);
-
-            _volume.MinExposure = transitionExposure;
-            _volume.MaxExposure = transitionExposure;
-            _volume.ExposureCompensation = 0f;
-
-            if (_core.Logger.IsEnabled(LogLevel.Debug))
-            {
-                _core.Logger.LogDebug(
-                    "[sws2-nightvision] Disabling night vision for player {PlayerId}: current={Current:0.00}, transition={Transition:0.00}",
-                    _playerId,
-                    currentIntensity,
-                    transitionExposure);
-            }
-            _volume.ExposureFadeSpeedUp = ExposureAdaptationSpeed;
-            _volume.ExposureFadeSpeedDown = ExposureAdaptationSpeed;
-            _volume.TonemapEVSmoothingRange = 0f;
-            _volume.MinExposureUpdated();
-            _volume.MaxExposureUpdated();
-            _volume.ExposureCompensationUpdated();
-            _volume.ExposureFadeSpeedUpUpdated();
-            _volume.ExposureFadeSpeedDownUpdated();
-            _volume.TonemapEVSmoothingRangeUpdated();
-        }
-        catch (Exception exception)
-        {
-            _core.Logger.LogDebug(
-                exception,
-                "[sws2-nightvision] Failed to prepare post_processing_volume for removal for player {PlayerId}",
-                _playerId);
-        }
-
-        // Give the client at least one snapshot with the restored exposure
-        // before deleting the volume. This is short enough to feel instant.
-        _core.Scheduler.DelayBySeconds(0.05f, () =>
-        {
-            DisposeImmediate();
-            onCompleted?.Invoke();
-        });
-    }
-
-    /// <summary>
-    /// Destroys the post-processing volume immediately.
-    /// </summary>
-    public void DisposeImmediate()
+    public void Dispose()
     {
         if (_disposed)
         {
@@ -402,7 +448,7 @@ public sealed class NightvisionEntity : IDisposable
         DetachFromOwner();
 
         _disposed = true;
-        _pendingDisable = false;
+        IsIdle = false;
         _spawned = false;
 
         try
@@ -423,13 +469,5 @@ public sealed class NightvisionEntity : IDisposable
         {
             _volume = null;
         }
-    }
-
-    /// <summary>
-    /// Destroys the post-processing volume immediately.
-    /// </summary>
-    public void Dispose()
-    {
-        DisposeImmediate();
     }
 }
