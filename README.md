@@ -47,7 +47,7 @@ csgo/addons/swiftlys2/plugins/
 | `!nv off` | Disable night vision |
 | `!nvi [intensity]` / `!nvintensity [intensity]` | Set your intensity, or show the current value and range |
 | `!nvstatus` | Show whether night vision is enabled and the current intensity |
-| `!nvdebug` | Write detailed diagnostics to your console and the server log |
+| `!nvdebug` | Write detailed diagnostics to your console. Also logged server-side when `Debug` is enabled. |
 
 Commands are registered as raw commands, so they can also be bound in the client console:
 
@@ -122,7 +122,7 @@ Player preferences are stored in `csgo/addons/swiftlys2/configs/plugins/sws2-nig
 
 If night vision is enabled but nothing changes on screen:
 
-1. Run `!nvdebug` and check the output in your client console and the server console.
+1. Run `!nvdebug` and check the output in your client console. Enable `Debug` in the config to also write it to the server log.
 2. Make sure your client has post-processing enabled:
 
    ```

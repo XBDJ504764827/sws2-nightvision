@@ -155,11 +155,15 @@ public partial class Sws2Nightvision
         }
 
         var diagnostics = _manager.GetDiagnostics(player);
-        Core.Logger.LogInformation(
-            "[sws2-nightvision] Debug for {PlayerName} ({PlayerId}): {Diagnostics}",
-            player.Name,
-            player.PlayerID,
-            diagnostics);
+
+        if (_config.Debug)
+        {
+            Core.Logger.LogDebug(
+                "[sws2-nightvision] Debug for {PlayerName} ({PlayerId}): {Diagnostics}",
+                player.Name,
+                player.PlayerID,
+                diagnostics);
+        }
 
         player.SendConsole($"[sws2-nightvision] {diagnostics}");
         Reply(context, localizer, "nightvision.debug.sent");
