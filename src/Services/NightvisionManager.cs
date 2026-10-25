@@ -78,18 +78,6 @@ public sealed class NightvisionManager : IDisposable
     /// <summary>Highest selectable intensity after configuration normalization.</summary>
     public float MaxIntensity => _maxIntensity;
 
-    /// <summary>Number of active night vision volumes.</summary>
-    public int ActiveCount
-    {
-        get
-        {
-            lock (_lock)
-            {
-                return _active.Count;
-            }
-        }
-    }
-
     /// <summary>
     /// Toggles night vision for a player.
     /// </summary>
@@ -97,6 +85,16 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
+            if (!_config.Behavior.Enabled)
+            {
+                return NightvisionToggleResult.FeatureDisabled;
+            }
+
+            if (!player.IsValid)
+            {
+                return NightvisionToggleResult.Unavailable;
+            }
+
             var preference = GetPreferenceLocked(player);
             return SetEnabledLocked(player, !preference.Enabled);
         }
@@ -334,7 +332,7 @@ public sealed class NightvisionManager : IDisposable
     /// <summary>
     /// Re-adds active volumes to their owners' camera services list.
     /// </summary>
-    public void ReattachActive()
+    private void ReattachActive()
     {
         lock (_lock)
         {
@@ -412,7 +410,6 @@ public sealed class NightvisionManager : IDisposable
 
                 entity.ApplyConfig(config);
                 entity.SetIntensity(intensity);
-                entity.AttachToOwner();
             }
 
             PersistLocked();
@@ -493,7 +490,6 @@ public sealed class NightvisionManager : IDisposable
             {
                 existing.ApplyConfig(_config);
                 existing.SetIntensity(ClampIntensity(intensity));
-                existing.AttachToOwner();
                 return true;
             }
 

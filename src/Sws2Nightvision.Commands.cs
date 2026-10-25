@@ -45,11 +45,14 @@ public partial class Sws2Nightvision
             ? _manager.SetEnabled(player, desired.Value)
             : _manager.Toggle(player);
 
-        Core.Logger.LogInformation(
-            "[sws2-nightvision] !nv from {PlayerName} ({PlayerId}) -> {Result}",
-            player.Name,
-            player.PlayerID,
-            result);
+        if (_config.Debug)
+        {
+            Core.Logger.LogDebug(
+                "[sws2-nightvision] !nv from {PlayerName} ({PlayerId}) -> {Result}",
+                player.Name,
+                player.PlayerID,
+                result);
+        }
 
         switch (result)
         {

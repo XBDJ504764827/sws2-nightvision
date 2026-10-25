@@ -24,9 +24,6 @@ public sealed class NightvisionEntity : IDisposable
         _playerId = playerId;
     }
 
-    /// <summary>The owning player slot.</summary>
-    public int PlayerId => _playerId;
-
     /// <summary>Whether the underlying entity is still valid.</summary>
     public bool IsActive => !_disposed && _volume is { IsValid: true };
 
@@ -67,10 +64,13 @@ public sealed class NightvisionEntity : IDisposable
             AttachToOwner();
             BlockForOtherPlayers();
 
-            _core.Logger.LogInformation(
-                "[sws2-nightvision] Created post_processing_volume for player {PlayerId}: {Diagnostics}",
-                _playerId,
-                GetDiagnostics());
+            if (config.Debug)
+            {
+                _core.Logger.LogDebug(
+                    "[sws2-nightvision] Created post_processing_volume for player {PlayerId}: {Diagnostics}",
+                    _playerId,
+                    GetDiagnostics());
+            }
 
             return true;
         }

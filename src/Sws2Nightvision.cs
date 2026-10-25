@@ -18,6 +18,7 @@ public partial class Sws2Nightvision : BasePlugin
     private NightvisionConfig _config = new();
     private NightvisionManager _manager = null!;
     private ServiceProvider _provider = null!;
+    private IDisposable? _configSubscription;
 
     private volatile bool _loaded;
 
@@ -56,7 +57,7 @@ public partial class Sws2Nightvision : BasePlugin
         _manager = new NightvisionManager(Core, _config, preferences);
         _manager.Start();
 
-        options.OnChange(newConfig =>
+        _configSubscription = options.OnChange(newConfig =>
         {
             Core.Scheduler.NextTick(() =>
             {
@@ -112,6 +113,9 @@ public partial class Sws2Nightvision : BasePlugin
         Core.GameEvent.UnhookPost<EventPlayerSpawn>();
         Core.GameEvent.UnhookPost<EventPlayerDeath>();
         Core.GameEvent.UnhookPost<EventPlayerTeam>();
+
+        _configSubscription?.Dispose();
+        _configSubscription = null;
 
         _manager?.Shutdown();
         _provider?.Dispose();

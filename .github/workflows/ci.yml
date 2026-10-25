@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      base_version: ${{ steps.version.outputs.base_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +55,6 @@ jobs:
             VERSION="${BASE_VERSION}"
           fi
 
-          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Build version: ${VERSION}"
 

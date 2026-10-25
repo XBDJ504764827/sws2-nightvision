@@ -132,13 +132,14 @@ If night vision is enabled but nothing changes on screen:
 
 ## How it works
 
-The plugin creates a non-networked-to-everyone `post_processing_volume` entity for each player who enables night vision:
+The plugin creates a private `post_processing_volume` entity for each player who enables night vision:
 
 - `Master` and `ExposureControl` are enabled.
 - `MinExposure` and `MaxExposure` are set to the player's intensity.
-- Transmission is blocked for every player, then re-enabled only for the owner.
+- The volume is attached to the owner's `CameraServices.PostProcessingVolumes` list.
+- Transmission is blocked for every other player; the owner is never blocked.
 
-This is the same approach used by [rcnoob/Nightvision](https://github.com/rcnoob/Nightvision). Because the volume is a master post-processing volume, the effect is applied by the client without modifying map lighting.
+This is the same exposure-control approach used by [rcnoob/Nightvision](https://github.com/rcnoob/Nightvision), with explicit camera-service attachment for SwiftlyS2. Because the volume is a master post-processing volume, the effect is applied by the client without modifying map lighting.
 
 > **Note:** Other master post-processing volumes (for example a map's color correction or a cinematic volume) may interact with the effect. The plugin does not modify or remove map entities.
 

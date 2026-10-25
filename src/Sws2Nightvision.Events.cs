@@ -12,7 +12,17 @@ public partial class Sws2Nightvision
 {
     private void OnClientConnected(IOnClientConnectedEvent @event)
     {
-        _manager.BlockActiveForPlayer(@event.PlayerId);
+        var playerId = @event.PlayerId;
+        _manager.BlockActiveForPlayer(playerId);
+
+        // The player object may not be available yet during this event.
+        Core.Scheduler.NextTick(() =>
+        {
+            if (_loaded)
+            {
+                _manager.BlockActiveForPlayer(playerId);
+            }
+        });
     }
 
     private void OnClientPutInServer(IOnClientPutInServerEvent @event)
