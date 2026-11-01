@@ -42,7 +42,7 @@ public partial class Sws2Nightvision
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
     {
-        if (!_config.Behavior.Enabled || !_config.Behavior.RestorePreferencesOnSpawn)
+        if (!_config.Behavior.Enabled)
         {
             return HookResult.Continue;
         }

@@ -36,6 +36,7 @@ public sealed class NightvisionManager : IDisposable
 
     private readonly Dictionary<int, NightvisionEntity> _active = new();
     private readonly Dictionary<int, PlayerPreference> _sessionPreferences = new();
+    private readonly Dictionary<int, PlayerPreference> _preferenceOwners = new();
 
     private NightvisionConfig _config;
     private float _minIntensity;
@@ -240,7 +241,7 @@ public sealed class NightvisionManager : IDisposable
     {
         lock (_lock)
         {
-            if (!_config.Behavior.Enabled || !_config.Behavior.RestorePreferencesOnSpawn)
+            if (!_config.Behavior.Enabled)
             {
                 return false;
             }
@@ -252,13 +253,20 @@ public sealed class NightvisionManager : IDisposable
             }
 
             var preference = GetPreferenceLocked(player);
+            var intensity = ClampIntensity(preference.Intensity);
+            preference.Intensity = intensity;
+
             if (!preference.Enabled)
+            {
+                // Players who have night vision off are still held at the 0.5 baseline.
+                return EnsureIdleLocked(player, intensity);
+            }
+
+            if (!_config.Behavior.RestorePreferencesOnSpawn)
             {
                 return false;
             }
 
-            var intensity = ClampIntensity(preference.Intensity);
-            preference.Intensity = intensity;
             return CreateActiveLocked(player, intensity);
         }
     }
@@ -313,6 +321,15 @@ public sealed class NightvisionManager : IDisposable
         {
             RemoveActiveLocked(playerId, "disconnect");
             _sessionPreferences.Remove(playerId);
+
+            // Night vision starts off again on the next join. Map changes do not
+            // disconnect the client, so the setting survives them.
+            if (_preferenceOwners.Remove(playerId, out var preference) && preference.Enabled)
+            {
+                preference.Enabled = false;
+                PersistLocked();
+                Debug("Night vision turned off for player {PlayerId} (disconnect)", playerId);
+            }
         }
     }
 
@@ -501,6 +518,13 @@ public sealed class NightvisionManager : IDisposable
 
     private PlayerPreference GetPreferenceLocked(IPlayer player)
     {
+        var preference = LoadPreferenceLocked(player);
+        _preferenceOwners[player.PlayerID] = preference;
+        return preference;
+    }
+
+    private PlayerPreference LoadPreferenceLocked(IPlayer player)
+    {
         if (_config.Behavior.SavePreferences && !player.IsFakeClient && player.SteamID != 0)
         {
             return _store.GetOrCreate(player.SteamID, _defaultIntensity);
@@ -517,6 +541,25 @@ public sealed class NightvisionManager : IDisposable
         }
 
         return preference;
+    }
+
+    /// <summary>
+    /// Makes sure the player has a volume held at the idle baseline.
+    /// </summary>
+    private bool EnsureIdleLocked(IPlayer player, float intensity)
+    {
+        if (_active.TryGetValue(player.PlayerID, out var existing) && existing.IsActive)
+        {
+            return true;
+        }
+
+        if (!CreateActiveLocked(player, intensity))
+        {
+            return false;
+        }
+
+        _active[player.PlayerID].SetIdle();
+        return true;
     }
 
     private bool CreateActiveLocked(IPlayer player, float intensity)

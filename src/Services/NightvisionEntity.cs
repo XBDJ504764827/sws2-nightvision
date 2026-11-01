@@ -12,7 +12,7 @@ namespace Sws2Nightvision.Services;
 public sealed class NightvisionEntity : IDisposable
 {
     private const float ExposureAdaptationSpeed = 10f;
-    private const float NormalExposure = 1f;
+    private const float IdleExposure = 0.5f;
 
     private readonly ISwiftlyCore _core;
     private readonly int _playerId;
@@ -136,7 +136,7 @@ public sealed class NightvisionEntity : IDisposable
     }
 
     /// <summary>
-    /// Keeps the volume alive but switches it to the map's normal exposure.
+    /// Keeps the volume alive but holds exposure at the default 0.5 level.
     /// This avoids a hard volume removal/creation cycle (and its exposure flash)
     /// when the player toggles night vision off and on.
     /// </summary>
@@ -149,17 +149,14 @@ public sealed class NightvisionEntity : IDisposable
 
         IsIdle = true;
 
-        var (found, min, max) = GetMapExposureRange();
-
         try
         {
-            // If the map has its own exposure range, mirror it so the player
-            // sees the same brightness as before night vision was enabled. If
-            // not, make the volume inert instead of forcing an arbitrary level.
-            _volume!.Master = found;
-            _volume.ExposureControl = found;
-            _volume.MinExposure = found ? min : NormalExposure;
-            _volume.MaxExposure = found ? max : NormalExposure;
+            // Hold the exposure at the default 0.5 so the map is not left at
+            // the boosted intensity after night vision is turned off.
+            _volume!.Master = true;
+            _volume.ExposureControl = true;
+            _volume.MinExposure = IdleExposure;
+            _volume.MaxExposure = IdleExposure;
             _volume.ExposureCompensation = 0f;
             _volume.ExposureFadeSpeedUp = ExposureAdaptationSpeed;
             _volume.ExposureFadeSpeedDown = ExposureAdaptationSpeed;
@@ -184,64 +181,10 @@ public sealed class NightvisionEntity : IDisposable
         if (_core.Logger.IsEnabled(LogLevel.Debug))
         {
             _core.Logger.LogDebug(
-                "[sws2-nightvision] Night vision idle for player {PlayerId}: found={Found} exposure={Min:0.00}-{Max:0.00}",
+                "[sws2-nightvision] Night vision idle for player {PlayerId}: exposure={Exposure:0.00}",
                 _playerId,
-                found,
-                min,
-                max);
+                IdleExposure);
         }
-    }
-
-    private (bool Found, float Min, float Max) GetMapExposureRange()
-    {
-        try
-        {
-            var player = _core.PlayerManager.GetPlayer(_playerId);
-            var camera = player?.PlayerPawn?.CameraServices;
-            if (camera is not null && _volume is not null)
-            {
-                ref var volumes = ref camera.PostProcessingVolumes;
-
-                for (var index = 0; index < volumes.Count; index++)
-                {
-                    var other = volumes[index].Value;
-                    if (other is null
-                        || other.Index == _volume.Index
-                        || !other.ExposureControl)
-                    {
-                        continue;
-                    }
-
-                    if (IsSaneExposure(other.MinExposure, other.MaxExposure))
-                    {
-                        return (true, other.MinExposure, other.MaxExposure);
-                    }
-                }
-
-                var tonemap = camera.TonemapController.Value;
-                var min = tonemap?.AutoExposureMin ?? 0f;
-                var max = tonemap?.AutoExposureMax ?? 0f;
-                if (IsSaneExposure(min, max))
-                {
-                    return (true, min, max);
-                }
-            }
-        }
-        catch
-        {
-            // Fall through to inert mode.
-        }
-
-        return (false, NormalExposure, NormalExposure);
-    }
-
-    private static bool IsSaneExposure(float min, float max)
-    {
-        return float.IsFinite(min)
-            && float.IsFinite(max)
-            && min >= 0.01f
-            && max >= min
-            && max <= 64f;
     }
 
     /// <summary>
