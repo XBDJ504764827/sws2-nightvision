@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Night vision turns off when a player leaves the server and on a cold server start. Map changes keep the setting. The saved intensity is kept.
+- Players with night vision off are held at exposure `0.5` once they spawn, instead of using the map's native exposure.
+
+### Fixed
+
+- Turning night vision off now holds the map exposure at `0.5` instead of mirroring the map's exposure range, which left the map too bright after toggling.
+
 ## [1.0.1] - 2026-10-25
 
 ### Changed

@@ -127,6 +127,26 @@ public sealed class PreferenceStore
     }
 
     /// <summary>
+    /// Turns off every saved night vision toggle and keeps the saved intensities.
+    /// </summary>
+    public void ClearEnabledFlags()
+    {
+        lock (_lock)
+        {
+            foreach (var preference in _players.Values)
+            {
+                if (preference.Enabled)
+                {
+                    preference.Enabled = false;
+                    _dirty = true;
+                }
+            }
+
+            SaveLocked();
+        }
+    }
+
+    /// <summary>
     /// Marks preferences as changed and writes them to disk if persistence is enabled.
     /// </summary>
     public void MarkDirtyAndSave()

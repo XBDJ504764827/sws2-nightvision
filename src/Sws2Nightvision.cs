@@ -54,6 +54,13 @@ public partial class Sws2Nightvision : BasePlugin
             _config.Behavior.SavePreferences);
         preferences.Load();
 
+        // A cold start means no player is connected, so every player begins with
+        // night vision off. Hot reloads keep the state of connected players.
+        if (!hotReload)
+        {
+            preferences.ClearEnabledFlags();
+        }
+
         _manager = new NightvisionManager(Core, _config, preferences);
         _manager.Start();
 
