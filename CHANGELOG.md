@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Update Microsoft.Extensions dependencies to 10.0.13 to satisfy SwiftlyS2.CS2 1.5.3 and fix NU1605 errors during CI restore.
 - Turning night vision off now holds the map exposure at `0.5` instead of mirroring the map's exposure range, which left the map too bright after toggling.
 
 ## [1.0.1] - 2026-10-25
